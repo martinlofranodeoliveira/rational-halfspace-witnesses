@@ -1,0 +1,61 @@
+name: native-offline-gates
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Record runner and prepare official native artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Runner image: %s %s\nArchitecture: %s\nSource: %s\n' "$ImageOS" "$ImageVersion" "$RUNNER_ARCH" "$GITHUB_SHA"
+          uname -a
+          docker build --platform linux/amd64 --target prepared -t rhw-prepared .
+      - name: Fresh offline native, source and installed-package gates without mounts
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker create --name rhw-gates --network none --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 1g --cpus 2 rhw-prepared
+          docker start --attach rhw-gates
+          status=$(docker inspect --format '{{.State.ExitCode}}' rhw-gates)
+          printf 'Offline container exit: %s\n' "$status"
+          test "$status" = 0
+          docker cp rhw-gates:/work/artifacts build
+          cat build/artifacts.sha256
+          cat build/runtime.ldd
+      - name: Prepare compiler-free runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --platform linux/amd64 --target runtime -t rhw-runtime .
+      - name: Fresh offline readonly runtime without checkout or compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=(--network none --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 1g --cpus 2 --read-only --tmpfs /work/tmp:rw,noexec,nosuid,size=16m,uid=1000,gid=1000)
+          docker run "${flags[@]}" rhw-runtime demo --assert
+          docker run "${flags[@]}" rhw-runtime demo --assert --json
+          printf '%s\n' '{"variables":0,"a":[],"b":[]}' | docker run -i "${flags[@]}" rhw-runtime solve | grep -F '"status":"FEASIBLE"'
+          printf '%s\n' '{"variables":0,"a":[[]],"b":[{"n":-1,"d":1}]}' | docker run -i "${flags[@]}" rhw-runtime solve | grep -F '"status":"INFEASIBLE"'
+          printf '%s\n' '{"variables":0,"a":[[]],"b":[{"n":-1,"d":1}],"budget":{"rows":0,"pairs":0,"bits":4096}}' | docker run -i "${flags[@]}" rhw-runtime solve | grep -F '"status":"UNKNOWN_BUDGET"'
+      - name: Installed CLI rejects output failures even if stderr also fails
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=(--network none --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 1g --cpus 2 --read-only --tmpfs /work/tmp:rw,noexec,nosuid,size=16m,uid=1000,gid=1000)
+          set +e
+          docker run "${flags[@]}" --entrypoint /bin/sh rhw-runtime -c 'exec /work/rational-halfspace-witnesses demo --assert >/dev/full 2>/dev/full'
+          demo_status=$?
+          docker run "${flags[@]}" --entrypoint /bin/sh rhw-runtime -c 'exec /work/rational-halfspace-witnesses solve >/dev/full 2>/dev/full'
+          solve_status=$?
+          set -e
+          test "$demo_status" -eq 74
+          test "$solve_status" -eq 74

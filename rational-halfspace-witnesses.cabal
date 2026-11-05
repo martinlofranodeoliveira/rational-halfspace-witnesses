@@ -1,0 +1,83 @@
+cabal-version: 3.0
+name: rational-halfspace-witnesses
+version: 0.1.0
+synopsis: Bounded exact rational feasibility with independently checked witnesses
+category: Math
+license: MIT
+license-file: LICENSE
+author: Lofrano Tecnologia
+maintainer: Lofrano Tecnologia
+homepage: https://lofranotecnologia.com.br
+bug-reports: https://github.com/martinlofranodeoliveira/rational-halfspace-witnesses/issues
+build-type: Simple
+description:
+  Development version 0.1.0. Fourier-Motzkin elimination for small systems
+  of non-strict rational inequalities. Returns a verified point, verified
+  nonnegative dual certificate, or explicit budget exhaustion.
+extra-source-files:
+  README.md
+  README.pt-BR.md
+  docs/design.md
+  docs/contract.md
+  docs/provenance.md
+  THIRD_PARTY.md
+  CHANGELOG.md
+  CONTRIBUTING.md
+  SECURITY.md
+  cabal.project
+  cabal.project.freeze
+  Dockerfile
+  .dockerignore
+  .gitignore
+  .editorconfig
+  .github/workflows/ci.yml
+  scripts/offline.sh
+  test/Consumer.hs
+
+source-repository head
+  type: git
+  location: https://github.com/martinlofranodeoliveira/rational-halfspace-witnesses
+
+common settings
+  default-language: Haskell2010
+  ghc-options: -Wall -Wcompat
+  build-depends: base ==4.18.2.1
+
+library
+  import: settings
+  hs-source-dirs: src
+  exposed-modules:
+    RationalHalfspace
+    RationalHalfspace.Types
+    RationalHalfspace.Verify
+    RationalHalfspace.JSON
+  other-modules:
+    RationalHalfspace.Arithmetic
+    RationalHalfspace.Solver
+  build-depends:
+    aeson ==2.1.2.1,
+    bytestring ==0.11.5.3,
+    containers ==0.6.7,
+    scientific ==0.3.7.0
+
+executable rational-halfspace-witnesses
+  import: settings
+  hs-source-dirs: app
+  main-is: Main.hs
+  ghc-options: -threaded -rtsopts
+  build-depends:
+    rational-halfspace-witnesses,
+    aeson ==2.1.2.1,
+    bytestring ==0.11.5.3
+
+test-suite native-tests
+  import: settings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Main.hs
+  c-sources: test/oracle.c
+  cc-options: -std=c11 -Wall -Wextra
+  extra-libraries: z3
+  build-depends:
+    rational-halfspace-witnesses,
+    bytestring ==0.11.5.3

@@ -1,0 +1,5 @@
+packages: .
+active-repositories: :none
+write-ghc-environment-files: never
+optimization: 1
+jobs: 1

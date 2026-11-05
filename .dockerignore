@@ -1,0 +1,12 @@
+.git
+build/*
+!build/rational-halfspace-witnesses
+!build/qualification
+build/qualification/*
+!build/qualification/notices
+!build/qualification/notices/**
+dist
+dist-newstyle
+*.hi
+*.o
+.ghc.environment.*
